@@ -1,0 +1,87 @@
+name: Temporary Android Release Build
+
+on:
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify network connectivity
+        run: |
+          set -eux
+          curl -fsSI --max-time 20 https://github.com >/dev/null
+          curl -fsSI --max-time 20 https://pub.dev >/dev/null
+          curl -fsSI --max-time 20 https://storage.googleapis.com >/dev/null
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - name: Flutter diagnostics
+        run: |
+          flutter --version
+          dart --version
+          flutter doctor -v
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+
+      - name: Android SDK and NDK
+        shell: bash
+        run: |
+          set -eux
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-37" "platform-tools" "build-tools;35.0.0"
+          NDK_VERSION="$(flutter --version >/dev/null 2>&1; grep -R "ndkVersion" "$FLUTTER_ROOT/packages/flutter_tools/gradle/src/main/groovy" "$FLUTTER_ROOT/packages/flutter_tools/gradle" 2>/dev/null | head -1 | sed -nE 's/.*ndkVersion[^0-9]*([0-9.]+).*/\1/p')"
+          if [ -z "$NDK_VERSION" ]; then NDK_VERSION="27.0.12077973"; fi
+          echo "Installing NDK $NDK_VERSION"
+          sdkmanager "ndk;$NDK_VERSION"
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Validate APK
+        shell: bash
+        run: |
+          set -eux
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          test -s "$APK"
+          file "$APK"
+          unzip -t "$APK" >/dev/null
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          echo "APK_PATH=$APK"
+          ls -lh "$APK"
+          aapt dump badging "$APK" | grep -E 'package:|versionCode=|versionName='
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DESA-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
