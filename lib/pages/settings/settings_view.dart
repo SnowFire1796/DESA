@@ -195,16 +195,6 @@ class SettingsView extends StatelessWidget {
                   ? theme.colorScheme.surfaceContainerHigh
                   : null,
             ),
-            ListTile(
-              leading: const Icon(Icons.privacy_tip_outlined),
-              title: Text(L10n.of(context).privacy),
-              onTap: () => launchUrlString(AppSettings.privacyPolicy.value),
-            ),
-            ListTile(
-              leading: const Icon(Icons.info_outline_rounded),
-              title: Text(L10n.of(context).about),
-              onTap: () => PlatformInfos.showDialog(context),
-            ),
             Divider(color: theme.dividerColor),
             ListTile(
               leading: const Icon(Icons.logout_outlined),
