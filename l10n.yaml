@@ -10,3 +10,4 @@ output-class: L10n
 preferred-supported-locales: ["en"]
 use-deferred-loading: true
 nullable-getter: false
+untranslated-messages-file: desiredFileName.txt
